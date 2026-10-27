@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Gear Planner store tests</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; margin: 16px; background: #fff; color: #111; }
+    .pass { color: #2f6f4f; } .fail { color: #b3261e; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Store tests</h1>
+  <p id="result">running</p>
+  <ul id="log"></ul>
+  <script src="../store.js"></script>
+  <script>
+    "use strict";
+    // Saved data in this browser is backed up first and restored afterwards.
+    const backup = Object.keys(localStorage).filter((k) => k.startsWith(STORAGE_PREFIX)).map((k) => [k, localStorage.getItem(k)]);
+    const results = [];
+    function test(name, fn) {
+      Store.clear();
+      try { fn(); results.push([name, null]); } catch (e) { results.push([name, e.message]); }
+    }
+    function eq(a, b, msg = "") {
+      const [x, y] = [JSON.stringify(a), JSON.stringify(b)];
+      if (x !== y) throw new Error(`${msg} expected ${y}, got ${x}`);
+    }
+    function throws(fn, pattern) {
+      try { fn(); } catch (e) { if (pattern.test(e.message)) return; throw new Error(`wrong error: ${e.message}`); }
+      throw new Error("expected an error");
+    }
+    const ITEMS = 'id,name,category,weight_g,weight_type,price,purchase_link,purchase_state,remarks\r\n' +
+      'pack,"Pack, 55L ""Ultra""",pack,895,base,357.04,,ordered,"line one\nline two"\r\n' +
+      'pocket,Pack - main compartment,,,,,,,\r\n' +
+      'quilt,Quilt,sleeping,538,base,,,owned,\r\n';
+    const CONTAINMENT = "parent_id,child_id\npack,pocket\npocket,quilt\n";
+    const CONFIGS = "config,item_id\nthru-hiking,pack\nthru-hiking,quilt\nday-hike,quilt\n";
+
+    test("CSV parse handles quotes, commas and newlines", () => {
+      eq(parseCsv('a,"b,c","d""e","f\ng"\r\n1,2,3,4'), [["a", "b,c", 'd"e', "f\ng"], ["1", "2", "3", "4"]]);
+    });
+
+    test("CSV round-trips through import and export", () => {
+      Store.importCsv([ITEMS]);
+      const item = Store.items()[0];
+      eq(item.name, 'Pack, 55L "Ultra"');
+      eq(item.remarks, "line one\nline two");
+      const exported = Store.exportCsv().find((f) => f.name === "items.csv").text;
+      Store.clear();
+      Store.importCsv([exported]);
+      eq(Store.items(), rowsFromCsv(ITEMS, ITEM_FIELDS));
+    });
+
+    test("import detects files by header, in any order", () => {
+      eq(Store.importCsv([CONFIGS, CONTAINMENT, ITEMS]).sort(), ["configurations.csv", "containment.csv", "items.csv"]);
+      eq(Store.relations().length, 2);
+      eq(Store.configurations().configs, ["thru-hiking", "trail-running", "day-hike"]);
+    });
+
+    test("import rejects bad rows without writing anything", () => {
+      Store.importCsv([ITEMS]);
+      throws(() => Store.importCsv([CONTAINMENT, ITEMS.replace("895", "-1")]), /row 2: weight_g must not be negative/);
+      eq(Store.relations(), []);
+      eq(Store.items().length, 3);
+    });
+
+    test("import rejects unknown files", () => {
+      throws(() => Store.importCsv(["foo,bar\n1,2\n"]), /unrecognised CSV header/);
+    });
+
+    test("setParent moves, removes, and blocks cycles", () => {
+      Store.importCsv([ITEMS, CONTAINMENT]);
+      throws(() => Store.setParent("pack", "quilt"), /inside its own contents/);
+      throws(() => Store.setParent("quilt", "quilt"), /inside itself/);
+      Store.setParent("quilt", "pack");
+      eq(Store.relations().filter((r) => r.child_id === "quilt"), [{ parent_id: "pack", child_id: "quilt" }]);
+      Store.setParent("quilt", "");
+      eq(Store.relations().some((r) => r.child_id === "quilt"), false);
+    });
+
+    test("delete drops containment and configuration rows", () => {
+      Store.importCsv([ITEMS, CONTAINMENT, CONFIGS]);
+      Store.delete("pocket");
+      eq(Store.relations(), []);
+      eq(Store.items().map((i) => i.id), ["pack", "quilt"]);
+      Store.delete("quilt");
+      eq(Store.configurations().selections, [{ config: "thru-hiking", item_id: "pack" }]);
+    });
+
+    test("create and update validate like the server", () => {
+      Store.create({ id: "cup", name: "Cup", purchase_state: "pending" });
+      throws(() => Store.create({ id: "cup", name: "Cup" }), /already exists/);
+      throws(() => Store.update("cup", { name: "Cup", purchase_state: "bought" }), /purchase_state must be one of/);
+      eq(Store.update("cup", { name: "Cup", price: "5" }).price, "5");
+    });
+
+    Store.clear();
+    for (const k of Object.keys(localStorage)) if (k.startsWith(STORAGE_PREFIX)) localStorage.removeItem(k);
+    for (const [k, v] of backup) localStorage.setItem(k, v);
+
+    const failed = results.filter(([, err]) => err);
+    document.getElementById("result").textContent = failed.length ? `FAILED ${failed.length} of ${results.length}` : `PASSED ${results.length}`;
+    document.getElementById("result").className = failed.length ? "fail" : "pass";
+    document.getElementById("log").append(...results.map(([name, err]) => {
+      const li = document.createElement("li");
+      li.className = err ? "fail" : "pass";
+      li.textContent = err ? `${name}: ${err}` : name;
+      return li;
+    }));
+  </script>
+</body>
+</html>

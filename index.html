@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gear Planner</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Gear Planner</h1>
+    <nav>
+      <button class="tab active" data-view="items">Items</button>
+      <button class="tab" data-view="pack">Pack layout</button>
+    </nav>
+    <div class="data-actions">
+      <button id="import-csv" title="Load items.csv, containment.csv and/or configurations.csv">Import CSV</button>
+      <button id="export-csv" title="Download the three CSV files">Export CSV</button>
+      <button id="clear-data" title="Delete all data stored in this browser">Clear</button>
+      <input id="import-files" type="file" accept=".csv,text/csv" multiple hidden>
+    </div>
+  </header>
+
+  <main>
+    <p id="empty-banner" class="banner" hidden>
+      No data in this browser yet. Use <strong>Import CSV</strong> to load your
+      <code>items.csv</code>, <code>containment.csv</code> and <code>configurations.csv</code>,
+      or start adding items below. Everything is saved in this browser only; use
+      <strong>Export CSV</strong> to back it up.
+    </p>
+
+    <section id="view-items" class="view">
+      <div class="summary" id="summary"></div>
+
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search name, category, remarks">
+        <select id="state-filter"><option value="">All states</option></select>
+        <select id="config-filter"><option value="">All configurations</option></select>
+      </div>
+
+      <form id="new-item" class="new-item" autocomplete="off">
+        <input name="name" placeholder="Name *" required>
+        <input name="category" list="category-options" placeholder="Category">
+        <input name="weight_g" type="number" min="0" step="any" placeholder="Weight g">
+        <select name="weight_type"></select>
+        <input name="price" type="number" min="0" step="any" placeholder="Price SGD">
+        <select name="purchase_state"></select>
+        <input name="purchase_link" type="url" placeholder="Purchase link">
+        <input name="remarks" placeholder="Remarks">
+        <span id="new-item-configs" class="config-checks"></span>
+        <button type="submit">Add item</button>
+      </form>
+
+      <div class="table-wrap">
+        <table id="items-table">
+          <thead>
+            <tr>
+              <th data-sort="name">Name</th>
+              <th data-sort="category">Category</th>
+              <th data-sort="weight_g" class="num">Weight g</th>
+              <th data-sort="weight_type">Weight type</th>
+              <th data-sort="price" class="num">Price SGD</th>
+              <th data-sort="purchase_state">State</th>
+              <!-- one column per configuration, inserted by app.js -->
+              <th>Inside</th>
+              <th>Link</th>
+              <th>Remarks</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-config" class="view" hidden>
+      <div class="summary" id="config-summary"></div>
+
+      <h2 id="config-selected-title"></h2>
+      <div class="table-wrap">
+        <table id="config-selected">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Remarks</th>
+              <th>Category</th>
+              <th class="num">Weight</th>
+              <th class="num">Price SGD</th>
+              <th>State</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <h2>Add items</h2>
+      <div class="toolbar">
+        <input id="config-search" type="search" placeholder="Search name, category, remarks">
+      </div>
+      <div class="table-wrap">
+        <table id="config-available">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Remarks</th>
+              <th>Category</th>
+              <th class="num">Weight</th>
+              <th class="num">Price SGD</th>
+              <th>State</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-pack" class="view" hidden>
+      <div class="toolbar">
+        <span class="hint">Use the <strong>in</strong> selector on a box, or the Inside column on the Items tab, to move gear between containers. Applies to the thru-hiking configuration.</span>
+      </div>
+      <div id="warnings"></div>
+      <div id="diagram"></div>
+      <details id="unplaced">
+        <summary></summary>
+        <ul></ul>
+      </details>
+    </section>
+  </main>
+
+  <datalist id="category-options"></datalist>
+  <div id="toast" hidden></div>
+  <script src="store.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
